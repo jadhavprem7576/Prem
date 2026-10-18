@@ -1,0 +1,87 @@
+name: Build & Publish Real Android APK (GitHub Auto-Build)
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-apk:
+    name: Compile Real Android APK for Phone Install
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Setup Java JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: 17
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Web Dependencies
+        run: npm ci || npm install
+
+      - name: Build Web App
+        run: npm run build
+
+      - name: Add Capacitor Android Project
+        run: |
+          npx cap add android || true
+          npx cap sync android
+
+      - name: Add Android App Permissions (Microphone, Audio, Internet)
+        run: |
+          MANIFEST="android/app/src/main/AndroidManifest.xml"
+          if [ -f "$MANIFEST" ]; then
+            sed -i '/<application/i \    <uses-permission android:name="android.permission.INTERNET" />\n    <uses-permission android:name="android.permission.RECORD_AUDIO" />\n    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />\n    <uses-permission android:name="android.permission.VIBRATE" />\n    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />' "$MANIFEST"
+          fi
+
+      - name: Build Signed Debug & Release APK with Gradle
+        working-directory: ./android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug
+          cp app/build/outputs/apk/debug/app-debug.apk ../AwaazAI-Android-v2.4.apk
+          cp app/build/outputs/apk/debug/app-debug.apk ../AwaazAI-Universal-Phone.apk
+
+      - name: Upload APK to GitHub Action Artifacts (Direct Download)
+        uses: actions/upload-artifact@v4
+        with:
+          name: AwaazAI-Android-Direct-Install-APK
+          path: AwaazAI-Android-v2.4.apk
+          retention-days: 90
+
+      - name: Create GitHub Release with APK Download
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/') || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+        with:
+          tag_name: v2.4-build-${{ github.run_number }}
+          name: "AwaazAI Android APK v2.4 (Build #${{ github.run_number }})"
+          body: |
+            ### 📱 AwaazAI Direct Android APK Installation
+            Download the APK file below directly to your Android phone to install the real app!
+
+            - **File**: `AwaazAI-Android-v2.4.apk`
+            - **Platform**: Android 7.0+ (Phone & Tablet)
+            - **Features**: Equal AI & J.A.R.V.I.S. Screen Call, Voice AI, WhatsApp SIM link
+          files: |
+            AwaazAI-Android-v2.4.apk
+            AwaazAI-Universal-Phone.apk
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

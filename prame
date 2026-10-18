@@ -1,0 +1,191 @@
+# ==============================================================================
+# 📱 PRAME — AwaazAI Real Android APK Code & GitHub Download Setup
+# File Name: prame
+# Target: Real Android APK compilation & Direct Phone Download from GitHub
+# ==============================================================================
+
+## 🎯 GITHUB SE REAL ANDROID APK KAISE DOWNLOAD AUR INSTALL KAREIN:
+
+Apne phone me real APK install karne ke liye ye aasan steps follow karein:
+
+### Step 1: GitHub par Repository banayein
+1. Apne phone ya computer me https://github.com kholein aur login karein.
+2. Ek new **Public** Repository banayein (Jaise: `awaazai-apk` ya `prame-app`).
+
+### Step 2: Code ko GitHub par Dalein (2 Options)
+- **Option A (Sabse aasan - 1 Click)**:
+  - AI Studio ke top bar me **GitHub** / **Export** icon par click karein aur apna GitHub account connect karke repository select karein.
+- **Option B (Manual copy)**:
+  - Niche diya gaya `.github/workflows/build-android-apk.yml` file apne GitHub repo me create karein.
+
+### Step 3: GitHub Actions APK Compile karega (Automated 100%)
+- Jaise hi code push hoga, GitHub automatically background me:
+  1. Ubuntu Android Runner start karega
+  2. Java 17 + Android SDK setup karega
+  3. Capacitor Android project generate karega
+  4. Real signed installable `.apk` file (`AwaazAI-Android-v2.4.apk`) build karega!
+
+### Step 4: Phone me Direct APK Download Karein:
+- **Tariqa 1 (GitHub Releases)**:
+  Apne GitHub repository ke **Releases** section me jayein, wahan `AwaazAI-Android-v2.4.apk` file par tap karein. Direct download shuru ho jayega!
+- **Tariqa 2 (GitHub Actions Tab)**:
+  Apne repo ke **Actions** tab par click karein → Latest workflow run par click karein → **Artifacts** me **AwaazAI-Android-Direct-Install-APK** download kar lein.
+
+---
+
+# ==============================================================================
+# 📂 FILE 1: GitHub Actions APK Auto-Builder Workflow
+# Path in GitHub Repo: .github/workflows/build-android-apk.yml
+# ==============================================================================
+
+name: Build & Publish Real Android APK (GitHub Auto-Build)
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-apk:
+    name: Compile Real Android APK for Phone Install
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Setup Java JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: 17
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Web Dependencies
+        run: npm ci || npm install
+
+      - name: Build Web App
+        run: npm run build
+
+      - name: Add Capacitor Android Project
+        run: |
+          npx cap add android || true
+          npx cap sync android
+
+      - name: Add Android App Permissions (Microphone, Audio, Internet)
+        run: |
+          MANIFEST="android/app/src/main/AndroidManifest.xml"
+          if [ -f "$MANIFEST" ]; then
+            sed -i '/<application/i \    <uses-permission android:name="android.permission.INTERNET" />\n    <uses-permission android:name="android.permission.RECORD_AUDIO" />\n    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />\n    <uses-permission android:name="android.permission.VIBRATE" />\n    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />' "$MANIFEST"
+          fi
+
+      - name: Build Signed Debug & Release APK with Gradle
+        working-directory: ./android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug
+          cp app/build/outputs/apk/debug/app-debug.apk ../AwaazAI-Android-v2.4.apk
+          cp app/build/outputs/apk/debug/app-debug.apk ../AwaazAI-Universal-Phone.apk
+
+      - name: Upload APK to GitHub Action Artifacts (Direct Download)
+        uses: actions/upload-artifact@v4
+        with:
+          name: AwaazAI-Android-Direct-Install-APK
+          path: AwaazAI-Android-v2.4.apk
+          retention-days: 90
+
+      - name: Create GitHub Release with APK Download
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/') || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+        with:
+          tag_name: v2.4-build-${{ github.run_number }}
+          name: "AwaazAI Android APK v2.4 (Build #${{ github.run_number }})"
+          body: |
+            ### 📱 AwaazAI Direct Android APK Installation
+            Download the APK file below directly to your Android phone to install the real app!
+          files: |
+            AwaazAI-Android-v2.4.apk
+            AwaazAI-Universal-Phone.apk
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+---
+
+# ==============================================================================
+# 📂 FILE 2: Capacitor Android Configuration
+# Path in GitHub Repo: capacitor.config.json
+# ==============================================================================
+
+{
+  "appId": "com.awaazai.jarvis.app",
+  "appName": "AwaazAI",
+  "webDir": "dist",
+  "bundledWebRuntime": false,
+  "server": {
+    "url": "https://ais-pre-k2tx2w4mficbzbfl6iv6wp-23015944067.asia-east1.run.app",
+    "cleartext": true
+  },
+  "android": {
+    "backgroundColor": "#020617",
+    "allowMixedContent": true,
+    "captureInput": true,
+    "webContentsDebuggingEnabled": true
+  }
+}
+
+---
+
+# ==============================================================================
+# 📂 FILE 3: Android App Manifest (Permissions & Calling setup)
+# Path in GitHub Repo: android-apk/AndroidManifest.xml
+# ==============================================================================
+
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.awaazai.jarvis.app">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+    <uses-permission android:name="android.permission.CALL_PHONE" />
+    <uses-permission android:name="android.permission.READ_PHONE_STATE" />
+    <uses-permission android:name="android.permission.VIBRATE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <application
+        android:allowBackup="true"
+        android:icon="@mipmap/ic_launcher"
+        android:label="AwaazAI"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/AppTheme"
+        android:usesCleartextTraffic="true">
+
+        <activity
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode"
+            android:name=".MainActivity"
+            android:label="AwaazAI"
+            android:theme="@style/AppTheme.NoActionBarLaunch"
+            android:launchMode="singleTask"
+            android:exported="true">
+
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>
